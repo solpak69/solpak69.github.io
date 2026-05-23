@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>안드로이드 GPS + 나침반 오픈맵</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta charset="utf-8">
+    
+    <!-- Leaflet 오픈소스 라이브러리 -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #f4f4f4;
+        }
+        #map-container {
+            width: 100%;
+            height: 100%;
+        }
+        /* 중심점을 기준으로 부드럽게 회전하도록 설정 */
+        #map {
+            width: 100%;
+            height: 100%;
+            transform-origin: center center;
+            transition: transform 0.1s ease-out;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="map-container">
+        <div id="map"></div>
+    </div>
+
+    <script>
+        let map;
+        let myMarker;
+        let mapElement = document.getElementById('map');
+        
+        // GPS 수신 전 기본 대기 좌표 (예: 대전 중심)
+        let currentLat = 36.3504;
+        let currentLng = 127.3848;
+
+        // 1. 지도 초기화
+        function initAndroidMap() {
+            // 초기 지도를 임시 좌표로 생성
+            map = L.map('map', { zoomControl: false }).setView([currentLat, currentLng], 16);
+
+            // 오픈스트리트맵 타일 추가
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '© OSM'
+            }).addTo(map);
+
+            // 내 위치를 표시할 마커 생성 (초기에는 숨김 또는 임시 위치)
+            myMarker = L.marker([currentLat, currentLng]).addTo(map);
+
+            // 2. 안드로이드 센서 및 GPS 추적 시작
+            startCompass();
+            startGPSTracking();
+        }
+
+        // 2-1. 안드로이드 방향(나침반) 센서 작동
+        function startCompass() {
+            if (window.DeviceOrientationEvent) {
+                window.addEventListener('deviceorientation', function(event) {
+                    let alpha = event.alpha;
+                    if (alpha !== null && alpha !== undefined) {
+                        if (event.absolute === true || event.webkitCompassHeading) {
+                            alpha = event.webkitCompassHeading || (360 - alpha);
+                        }
+                        // 기기가 바라보는 방향이 지도의 '위쪽'이 되도록 회전
+                        let rotateAngle = -alpha;
+                        mapElement.style.transform = `rotate(${rotateAngle}deg)`;
+                    }
+                }, true);
+            } else {
+                console.log("방향 센서를 지원하지 않는 기기입니다.");
+            }
+        }
+
+        // 2-2. 실시간 GPS 추적 (안드로이드 하드웨어 GPS 직접 연동)
+        function startGPSTracking() {
+            if ("geolocation" in navigator) {
+                // watchPosition을 사용하면 사용자가 움직일 때마다 GPS 좌표가 실시간으로 들어옵니다.
+                navigator.geolocation.watchPosition(
+                    function(position) {
+                        currentLat = position.coords.latitude;
+                        currentLng = position.coords.longitude;
+
+                        // 1) 마커 위치를 현재 GPS 좌표로 이동
+                        myMarker.setLatLng([currentLat, currentLng]);
+
+                        // 2) 지도의 중심점을 내 현재 위치로 부드럽게 이동
+                        map.panTo([currentLat, currentLng]);
+                        
+                        console.log(`GPS 갱신 성공: ${currentLat}, ${currentLng}`);
+                    },
+                    function(error) {
+                        // GPS 켜짐 여부나 권한 거부 예외 처리
+                        switch(error.code) {
+                            case error.PERMISSION_DENIED:
+                                alert("위치 정보 권한이 거부되었습니다. 안드로이드 설정에서 권한을 허용해 주세요.");
+                                break;
+                            case error.POSITION_UNAVAILABLE:
+                                alert("위치 정보를 사용할 수 없습니다. GPS가 켜져 있는지 확인해 주세요.");
+                                break;
+                            case error.TIMEOUT:
+                                console.log("위치 측정 시간 초과");
+                                break;
+                        }
+                    },
+                    {
+                        enableHighAccuracy: true, // 안드로이드 하드웨어 GPS를 사용하여 높은 정확도로 측정
+                        maximumAge: 0,            // 캐시된 이전 위치를 쓰지 않고 무조건 새 좌표 요청
+                        timeout: 5000             // 5초 이내에 수신되지 않으면 예외 처리
+                    }
+                );
+            } else {
+                alert("이 기기나 브라우저는 GPS 위치 정보(Geolocation)를 지원하지 않습니다.");
+            }
+        }
+
+        // 로드 즉시 실행
+        window.onload = initAndroidMap;
+    </script>
+</body>
+</html>
