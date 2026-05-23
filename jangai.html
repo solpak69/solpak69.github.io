@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>장기 게임 (완전판)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 10px;
+        }
+        
+        .container {
+            background: #f5f5f5;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 900px;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 24px;
+        }
+        
+        .mode-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .mode-btn {
+            flex: 1;
+            min-width: 100px;
+            padding: 10px 12px;
+            background: white;
+            border: 2px solid #667eea;
+            color: #667eea;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 12px;
+            transition: all 0.3s;
+        }
+        
+        .mode-btn.active {
+            background: #667eea;
+            color: white;
+        }
+        
+        .mode-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        
+        .game-wrapper {
+            display: flex;
+            gap: 15px;
+            flex-direction: column;
+        }
+        
+        .board-section {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        canvas {
+            border: 2px solid #333;
+            background: #d4a574;
+            display: block;
+            cursor: pointer;
+            border-radius: 5px;
+            max-width: 100%;
+            height: auto;
+        }
+        
+        .ai-thinking {
+            text-align: center;
+            color: #667eea;
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 10px;
+            display: none;
+        }
+        
+        .ai-thinking.active {
+            display: block;
+        }
+        
+        .info-section {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        @media (min-width: 768px) {
+            .game-wrapper {
+                flex-direction: row;
+            }
+            
+            .board-section {
+                flex: 1;
+                min-width: 320px;
+            }
+            
+            .info-section {
+                flex: 1;
+                min-width: 250px;
+            }
+        }
+        
+        .info-box {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 12px;
+        }
+        
+        .info-box h3 {
+            margin-bottom: 8px;
+            color: #333;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        
+        .info-box p {
+            font-size: 12px;
+            color: #666;
+            line-height: 1.6;
+        }
+        
+        .player-status {
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        
+        .red-player {
+            background: #ffe6e6;
+            color: #c41e3a;
+        }
+        
+        .blue-player {
+            background: #e6f0ff;
+            color: #003da5;
+        }
+        
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+        
+        button:hover {
+            background: #764ba2;
+        }
+        
+        .moves-log {
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 12px;
+            font-family: monospace;
+            line-height: 1.6;
+            color: #666;
+        }
+        
+        .move-item {
+            padding: 4px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .move-red {
+            color: #c41e3a;
+        }
+        
+        .move-blue {
+            color: #003da5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>장기</h1>
+        
+        <div class="mode-selector">
+            <button class="mode-btn active" onclick="setGameMode('pvp')">🎮 PvP</button>
+            <button class="mode-btn" onclick="setGameMode('ai')">🤖 AI (빨강 - 한)</button>
+            <button class="mode-btn" onclick="setGameMode('ai_blue')">🤖 AI (파랑 - 초)</button>
+        </div>
+        
+        <div class="game-wrapper">
+            <div class="board-section">
+                <canvas id="boardCanvas"></canvas>
+                <div class="ai-thinking" id="aiThinking">🤔 AI가 생각 중...</div>
+            </div>
+            
+            <div class="info-section">
+                <div class="player-status red-player" id="playerStatus">
+                    🔴 한(초립) 차례
+                </div>
+                
+                <div class="info-box">
+                    <h3>현재 상황</h3>
+                    <p id="gameStatus">게임을 시작하세요</p>
+                </div>
+                
+                <div class="info-box">
+                    <h3>조작법</h3>
+                    <p>
+                        • 말을 클릭 후 이동할 위치를 클릭<br>
+                        • 마/상: 멱(길막기) 규칙이 적용됩니다.<br>
+                        • 포: 다른 포를 넘거나 잡을 수 없습니다.<br>
+                        • 차/포/병: 궁성 내 대각선 이동이 가능합니다.
+                    </p>
+                </div>
+                
+                <button onclick="resetGame()">처음부터</button>
+                
+                <div class="info-box">
+                    <h3>기본 규칙</h3>
+                    <p>
+                        <strong>병/졸(兵/卒):</strong> 앞 및 좌우 한 칸 (후진 불가)<br>
+                        <strong>마(馬):</strong> L자 이동 (길목 차단 시 이동 불가)<br>
+                        <strong>상(象):</strong> 대각선 이동 (길목 차단 시 이동 불가)<br>
+                        <strong>차(車):</strong> 직선 및 궁성 대각선 무제한<br>
+                        <strong>포(砲):</strong> 기물 1개 넘어 이동 (쌍포 금지)<br>
+                        <strong>사(士):</strong> 궁성 내 선 따라 한 칸<br>
+                        <strong>왕(王):</strong> 궁성 내 선 따라 한 칸
+                    </p>
+                </div>
+                
+                <div class="info-box">
+                    <h3>이동 기록</h3>
+                    <div class="moves-log" id="movesLog">
+                        기록이 없습니다
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('boardCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // 게임 상태
+        const gameState = {
+            board: [],
+            turn: 'red', // red: 한(하단), blue: 초(상단) -> 장기는 원래 한(초립) 선제공격이 기본이나 기존 구조 유지
+            selectedPos: null,
+            validMoves: [],
+            moves: [],
+            gameMode: 'pvp',
+            isGameOver: false
+        };
+        
+        // 기물 정의
+        const pieces = {
+            'R': { name: '차', player: 'red', symbol: '車' },
+            'M': { name: '마', player: 'red', symbol: '馬' },
+            'E': { name: '상', player: 'red', symbol: '象' },
+            'P': { name: '포', player: 'red', symbol: '砲' },
+            'A': { name: '사', player: 'red', symbol: '士' },
+            'B': { name: '병', player: 'red', symbol: '兵' },
+            'K': { name: '왕', player: 'red', symbol: '王' },
+            'r': { name: '차', player: 'blue', symbol: '車' },
+            'm': { name: '마', player: 'blue', symbol: '馬' },
+            'e': { name: '상', player: 'blue', symbol: '象' },
+            'p': { name: '포', player: 'blue', symbol: '砲' },
+            'a': { name: '사', player: 'blue', symbol: '士' },
+            'b': { name: '졸', player: 'blue', symbol: '卒' },
+            'k': { name: '왕', player: 'blue', symbol: '王' }
+        };
+        
+        // 보드 초기화 (상단 blue: 초, 하단 red: 한)
+        function initBoard() {
+            gameState.board = [
+                ['r', 'm', 'e', 'a', '.', 'a', 'e', 'm', 'r'],
+                ['.', '.', '.', '.', 'k', '.', '.', '.', '.'],
+                ['.', 'p', '.', '.', '.', '.', '.', 'p', '.'],
+                ['b', '.', 'b', '.', 'b', '.', 'b', '.', 'b'],
+                ['.', '.', '.', '.', '.', '.', '.', '.', '.'],
+                ['.', '.', '.', '.', '.', '.', '.', '.', '.'],
+                ['B', '.', 'B', '.', 'B', '.', 'B', '.', 'B'],
+                ['.', 'P', '.', '.', '.', '.', '.', 'P', '.'],
+                ['.', '.', '.', '.', 'K', '.', '.', '.', '.'],
+                ['R', 'M', 'E', 'A', '.', 'A', 'E', 'M', 'R']
+            ];
+            gameState.turn = 'red';
+            gameState.selectedPos = null;
+            gameState.validMoves = [];
+            gameState.moves = [];
+            gameState.isGameOver = false;
+        }
+        
+        // 궁성 영역 판정 (Red: 하단, Blue: 상단)
+        function isPalace(row, col) {
+            const isRedPalace = row >= 7 && row <= 9 && col >= 3 && col <= 5;
+            const isBluePalace = row >= 0 && row <= 2 && col >= 3 && col <= 5;
+            return isRedPalace || isBluePalace;
+        }
+        
+        // 캔버스 크기 설정
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            const maxWidth = Math.min(container.clientWidth - 20, 500);
+            const cellWidth = maxWidth / 9;
+            const cellHeight = cellWidth * 1.11; // 비율 조정
+            
+            canvas.width = maxWidth;
+            canvas.height = cellHeight * 10;
+        }
+        
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        
+        function getClickPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            const cellWidth = canvas.width / 9;
+            const cellHeight = canvas.height / 10;
+            
+            const col = Math.floor(x / cellWidth);
+            const row = Math.floor(y / cellHeight);
+            
+            return { row, col };
+        }
+        
+        // 특정 위치의 기물이 포(P/p)인지 판정
+        function isPo(row, col) {
+            const p = gameState.board[row][col];
+            return p.toLowerCase() === 'p';
+        }
+        
+        // 유효 행마법 계산 (모든 오류 및 장기 규칙 전면 수정)
+        function getValidMoves(row, col, customBoard = null) {
+            const currentBoard = customBoard || gameState.board;
+            const piece = currentBoard[row][col];
+            if (piece === '.') return [];
+            
+            const isRed = piece === piece.toUpperCase();
+            const type = piece.toLowerCase();
+            const moves = [];
+            
+            const canCaptureOrMove = (r, c) => {
+                if (r < 0 || r >= 10 || c < 0 || c >= 9) return false;
+                const target = currentBoard[r][c];
+                if (target === '.') return true;
+                return isRed !== (target === target.toUpperCase());
+            };
+            
+            const addMove = (r, c) => {
+                if (canCaptureOrMove(r, c)) moves.push([r, c]);
+            };
+            
+            // 1. 병 / 졸
+            if (type === 'b') {
+                const dir = isRed ? -1 : 1; // Red는 하단에서 상단(-1), Blue는 상단에서 하단(+1)
+                // 전진
+                if (row + dir >= 0 && row + dir < 10) addMove(row + dir, col);
+                // 좌우 이동
+                if (col - 1 >= 0) addMove(row, col - 1);
+                if (col + 1 < 9) addMove(row, col + 1);
+                
+                // 궁성 대각선 전진 규칙
+                if (isPalace(row, col)) {
+                    if (isRed && row === 9 && col === 3) addMove(8, 4);
+                    if (isRed && row === 9 && col === 5) addMove(8, 4);
+                    if (isRed && row === 8 && col === 4) { addMove(7, 3); addMove(7, 5); }
+                    if (!isRed && row === 0 && col === 3) addMove(1, 4);
+                    if (!isRed && row === 0 && col === 5) addMove(1, 4);
+                    if (!isRed && row === 1 && col === 4) { addMove(2, 3); addMove(2, 5); }
+                }
+            }
+            
+            // 2. 마 (馬) - 멱(길막기) 완벽 반영
+            else if (type === 'm') {
+                const mDirs = [
+                    [-1, 0, -2, -1], [-1, 0, -2, 1],  // 위
+                    [1, 0, 2, -1],  [1, 0, 2, 1],    // 아래
+                    [0, -1, -1, -2], [0, -1, 1, -2],  // 왼쪽
+                    [0, 1, -1, 2],   [0, 1, 1, 2]     // 오른쪽
+                ];
+                for (let [ir, ic, fr, fc] of mDirs) {
+                    const nr = row + fr, nc = col + fc;
+                    const mr = row + ir, mc = col + ic;
+                    if (nr >= 0 && nr < 10 && nc >= 0 && nc < 9) {
+                        if (currentBoard[mr][mc] === '.') { // 멱이 비어있어야 함
+                            addMove(nr, nc);
+                        }
+                    }
+                }
+            }
+            
+            // 3. 상 (象) - 멱(길막기 2곳) 완벽 반영
+            else if (type === 'e') {
+                const eDirs = [
+                    [-1, 0, -2, -1, -3, -2], [-1, 0, -2, 1, -3, 2], // 위
+                    [1, 0, 2, -1, 3, -2],   [1, 0, 2, 1, 3, 2],   // 아래
+                    [0, -1, -1, -2, -2, -3], [0, -1, 1, -2, 2, -3], // 왼쪽
+                    [0, 1, -1, 2, -2, 3],   [0, 1, 1, 2, 2, 3]    // 오른쪽
+                ];
+                for (let [r1, c1, r2, c2, fr, fc] of eDirs) {
+                    const nr = row + fr, nc = col + fc;
+                    const mr1 = row + r1, mc1 = col + c1;
+                    const mr2 = row + r2, mc2 = col + c2;
+                    if (nr >= 0 && nr < 10 && nc >= 0 && nc < 9) {
+                        // 가로막는 멱 2 자리가 모두 비어있어야 이동 가능
+                        if (currentBoard[mr1][mc1] === '.' && currentBoard[mr2][mc2] === '.') {
+                            addMove(nr, nc);
+                        }
+                    }
+                }
+            }
+            
+            // 4. 차 (車) - 직선 및 궁성 대각선 완벽 반영
+            else if (type === 'r') {
+                const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+                for (let [dr, dc] of dirs) {
+                    let nr = row + dr, nc = col + dc;
+                    while (nr >= 0 && nr < 10 && nc >= 0 && nc < 9) {
+                        const target = currentBoard[nr][nc];
+                        if (target === '.') { moves.push([nr, nc]); }
+                        else {
+                            if (isRed !== (target === target.toUpperCase())) moves.push([nr, nc]);
+                            break;
+                        }
+                        nr += dr; nc += dc;
+                    }
+                }
+                // 궁성 대각선 이동 규칙
+                if (isPalace(row, col)) {
+                    const pMoves = [];
+                    if ((row === 0 || row === 7) && col === 3) pMoves.push([[1,4],[2,5]], [[8,4],[9,5]]);
+                    if ((row === 0 || row === 7) && col === 5) pMoves.push([[1,4],[2,3]], [[8,4],[9,3]]);
+                    if ((row === 2 || row === 9) && col === 3) pMoves.push([[1,4],[0,5]], [[8,4],[7,5]]);
+                    if ((row === 2 || row === 9) && col === 5) pMoves.push([[1,4],[0,3]], [[8,4],[7,3]]);
+                    if ((row === 1 || row === 8) && col === 4) {
+                        pMoves.push([[0,3]], [[0,5]], [[2,3]], [[2,5]], [[7,3]], [[7,5]], [[9,3]], [[9,5]]);
+                    }
+                    for (let path of pMoves) {
+                        // 해당 기물의 행/열 위치가 매칭되는 궁성 경로만 탐색
+                        if ((row < 3 && path[0][0] < 3) || (row > 6 && path[0][0] > 6)) {
+                            for (let [tr, tc] of path) {
+                                const target = currentBoard[tr][tc];
+                                if (target === '.') moves.push([tr, tc]);
+                                else {
+                                    if (isRed !== (target === target.toUpperCase())) moves.push([tr, tc]);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // 5. 포 (砲) - 쌍포 금지, 포 캡처 금지 규칙 완벽 반영
+            else if (type === 'p') {
+                const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+                for (let [dr, dc] of dirs) {
+                    let nr = row + dr, nc = col + dc;
+                    let bridgeFound = false;
+                    while (nr >= 0 && nr < 10 && nc >= 0 && nc < 9) {
+                        const target = currentBoard[nr][nc];
+                        if (!bridgeFound) {
+                            if (target !== '.') {
+                                if (isPo(nr, nc)) break; // 포는 포를 다리로 삼을 수 없음
+                                bridgeFound = true;
+                            }
+                        } else {
+                            if (target === '.') {
+                                moves.push([nr, nc]);
+                            } else {
+                                if (!isPo(nr, nc) && (isRed !== (target === target.toUpperCase()))) {
+                                    moves.push([nr, nc]); // 포는 포를 잡을 수 없음
+                                }
+                                break;
+                            }
+                        }
+                        nr += dr; nc += dc;
+                    }
+                }
+                // 궁성 내 대각선 포 이동
+                if (isPalace(row, col)) {
+                    const checkDiagonalPo = (r1, c1, r2, c2) => {
+                        if (currentBoard[r1][c1] !== '.' && !isPo(r1, c1)) {
+                            const target = currentBoard[r2][c2];
+                            if (target === '.') moves.push([r2, c2]);
+                            else if (!isPo(r2, c2) && isRed !== (target === target.toUpperCase())) moves.push([r2, c2]);
+                        }
+                    };
+                    if (row === 0 && col === 3) checkDiagonalPo(1, 4, 2, 5);
+                    if (row === 0 && col === 5) checkDiagonalPo(1, 4, 2, 3);
+                    if (row === 2 && col === 3) checkDiagonalPo(1, 4, 0, 5);
+                    if (row === 2 && col === 5) checkDiagonalPo(1, 4, 0, 3);
+                    if (row === 7 && col === 3) checkDiagonalPo(8, 4, 9, 5);
+                    if (row === 7 && col === 5) checkDiagonalPo(8, 4, 9, 3);
+                    if (row === 9 && col === 3) checkDiagonalPo(8, 4, 7, 5);
+                    if (row === 9 && col === 5) checkDiagonalPo(8, 4, 7, 3);
+                }
+            }
+            
+            // 6. 사 / 왕 (궁성 안에서 선 따라 움직임)
+            else if (type === 'a' || type === 'k') {
+                const deltas = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]];
+                for (let [dr, dc] of deltas) {
+                    const nr = row + dr, nc = col + dc;
+                    if (isPalace(nr, nc)) {
+                        // 같은 궁성 내에서만 움직여야 함 (Red 왕이 Blue 궁성으로 텔레포트 불가)
+                        if ((row < 3 && nr < 3) || (row > 6 && nr > 6)) {
+                            // 궁성 중심(1,4 또는 8,4)이거나 직선 축 이동이거나, 모서리에서 중심으로 오는 대각선일 때만 허용
+                            const isDiagonal = dr !== 0 && dc !== 0;
+                            if (isDiagonal) {
+                                if ((row === 1 && col === 4) || (row === 8 && col === 4) || (nr === 1 && nc === 4) || (nr === 8 && nc === 4)) {
+                                    addMove(nr, nc);
+                                }
+                            } else {
+                                addMove(nr, nc);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            return moves;
+        }
+        
+        // 보드 그래픽 렌더링
+        function drawBoard() {
+            const cellWidth = canvas.width / 9;
+            const cellHeight = canvas.height / 10;
+            
+            ctx.fillStyle = '#d4a574';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 1;
+            
+            // 장기 격자 격자선 그리기 (선 중심 배치를 위해 반 칸씩 시프트하여 시각적 안정성 확보)
+            for (let i = 0; i < 10; i++) {
+                ctx.beginPath();
+                ctx.moveTo(cellWidth / 2, i * cellHeight + cellHeight / 2);
+                ctx.lineTo(canvas.width - cellWidth / 2, i * cellHeight + cellHeight / 2);
+                ctx.stroke();
+            }
+            for (let j = 0; j < 9; j++) {
+                ctx.beginPath();
+                ctx.moveTo(j * cellWidth + cellWidth / 2, cellHeight / 2);
+                ctx.lineTo(j * cellWidth + cellWidth / 2, canvas.height - cellHeight / 2);
+                ctx.stroke();
+            }
+            
+            // 궁성 사선 표시
+            const drawPalaceLines = (startRow) => {
+                ctx.beginPath();
+                ctx.moveTo(3 * cellWidth + cellWidth / 2, startRow * cellHeight + cellHeight / 2);
+                ctx.lineTo(5 * cellWidth + cellWidth / 2, (startRow + 2) * cellHeight + cellHeight / 2);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(5 * cellWidth + cellWidth / 2, startRow * cellHeight + cellHeight / 2);
+                ctx.lineTo(3 * cellWidth + cellWidth / 2, (startRow + 2) * cellHeight + cellHeight / 2);
+                ctx.stroke();
+            };
+            drawPalaceLines(0);
+            drawPalaceLines(7);
+            
+            // 기물 그리기
+            for (let i = 0; i < 10; i++) {
+                for (let j = 0; j < 9; j++) {
+                    const piece = gameState.board[i][j];
+                    if (piece !== '.') {
+                        drawPiece(i, j, piece, cellWidth, cellHeight);
+                    }
+                }
+            }
+            
+            // 오버레이 하이라이트 효과
+            if (gameState.selectedPos) {
+                const [r, c] = gameState.selectedPos;
+                ctx.fillStyle = 'rgba(255, 255, 0, 0.4)';
+                ctx.beginPath();
+                ctx.arc(c * cellWidth + cellWidth / 2, r * cellHeight + cellHeight / 2, Math.min(cellWidth, cellHeight) * 0.4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            ctx.fillStyle = 'rgba(0, 255, 0, 0.35)';
+            for (let [r, c] of gameState.validMoves) {
+                ctx.beginPath();
+                ctx.arc(c * cellWidth + cellWidth / 2, r * cellHeight + cellHeight / 2, Math.min(cellWidth, cellHeight) * 0.2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        
+        // 기물 오브젝트 묘사
+        function drawPiece(row, col, piece, cellWidth, cellHeight) {
+            const x = col * cellWidth + cellWidth / 2;
+            const y = row * cellHeight + cellHeight / 2;
+            const isRed = piece === piece.toUpperCase();
+            
+            // 실제 장기알처럼 한(초립)은 미세하게 작게, 초(파랑)는 크게 표현해 감각 최적화
+            const radius = Math.min(cellWidth, cellHeight) * (isRed ? 0.38 : 0.43);
+            
+            ctx.fillStyle = isRed ? '#f7f4eb' : '#f7f4eb'; 
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.strokeStyle = isRed ? '#c41e3a' : '#003da5';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            
+            ctx.fillStyle = isRed ? '#c41e3a' : '#003da5';
+            ctx.font = 'bold ' + Math.floor(radius * 1.1) + 'px serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(pieces[piece].symbol, x, y);
+        }
+        
+        // 클릭 이벤트 핸들러
+        canvas.addEventListener('click', (e) => {
+            if (gameState.isGameOver) return;
+            
+            const isAIRed = gameState.gameMode === 'ai';
+            const isAIBlue = gameState.gameMode === 'ai_blue';
+            
+            if ((gameState.turn === 'red' && isAIRed) || (gameState.turn === 'blue' && isAIBlue)) {
+                return;
+            }
+            
+            const { row, col } = getClickPos(e);
+            if (col < 0 || col >= 9 || row < 0 || row >= 10) return;
+            
+            const piece = gameState.board[row][col];
+            
+            if (gameState.selectedPos && gameState.validMoves.some(m => m[0] === row && m[1] === col)) {
+                movePiece(gameState.selectedPos[0], gameState.selectedPos[1], row, col);
+                gameState.selectedPos = null;
+                gameState.validMoves = [];
+                drawBoard();
+                updateInfo();
+                
+                if (!gameState.isGameOver) {
+                    executeAIMove();
+                }
+                return;
+            }
+            
+            if (piece !== '.' && pieces[piece].player === gameState.turn) {
+                gameState.selectedPos = [row, col];
+                gameState.validMoves = getValidMoves(row, col);
+                drawBoard();
+            }
+        });
+        
+        // 기물 실제로 보드판 위에서 움직임 처리
+        function movePiece(fromRow, fromCol, toRow, toCol) {
+            const piece = gameState.board[fromRow][fromCol];
+            const target = gameState.board[toRow][toCol];
+            
+            gameState.board[toRow][toCol] = piece;
+            gameState.board[fromRow][fromCol] = '.';
+            
+            const pName = isPalace(fromRow, fromCol) && (piece.toLowerCase() === 'k') ? '궁' : pieces[piece].name;
+            const notation = pName + ': (' + fromCol + ',' + fromRow + ') → (' + toCol + ',' + toRow + ')';
+            
+            if (target !== '.') {
+                gameState.moves.push(notation + ' (획득: ' + pieces[target].name + ')');
+                if (target.toLowerCase() === 'k') {
+                    gameState.isGameOver = true;
+                }
+            } else {
+                gameState.moves.push(notation);
+            }
+            
+            gameState.turn = gameState.turn === 'red' ? 'blue' : 'red';
+        }
+        
+        // AI 스코어링 알고리즘 테이블 가치 산정
+        function getPieceValue(piece) {
+            if (piece === '.') return 0;
+            const values = { 'b': 3, 'm': 5, 'e': 7, 'r': 13, 'p': 7, 'a': 3, 'k': 1000 };
+            return values[piece.toLowerCase()] || 0;
+        }
+        
+        function evaluateBoard(boardState) {
+            let score = 0;
+            for (let i = 0; i < 10; i++) {
+                for (let j = 0; j < 9; j++) {
+                    const piece = boardState[i][j];
+                    if (piece !== '.') {
+                        const value = getPieceValue(piece);
+                        if (piece === piece.toUpperCase()) {
+                            score += value;
+                        } else {
+                            score -= value;
+                        }
+                    }
+                }
+            }
+            return score;
+        }
+        
+        // 미니맥스 내부 알파베타 가상 턴 분기 안정화
+        function minimax(depth, isMax, alpha, beta, simulatedTurn) {
+            if (depth === 0) return evaluateBoard(gameState.board);
+            
+            const allMoves = [];
+            for (let i = 0; i < 10; i++) {
+                for (let j = 0; j < 9; j++) {
+                    const piece = gameState.board[i][j];
+                    if (piece !== '.' && pieces[piece].player === simulatedTurn) {
+                        const moves = getValidMoves(i, j, gameState.board);
+                        for (let m of moves) allMoves.push([i, j, m[0], m[1]]);
+                    }
+                }
+            }
+            
+            if (allMoves.length === 0) return evaluateBoard(gameState.board);
+            
+            const nextTurn = simulatedTurn === 'red' ? 'blue' : 'red';
+            
+            if (isMax) {
+                let max = -Infinity;
+                for (let [fr, fc, tr, tc] of allMoves) {
+                    const target = gameState.board[tr][tc];
+                    gameState.board[tr][tc] = gameState.board[fr][fc];
+                    gameState.board[fr][fc] = '.';
+                    
+                    const val = minimax(depth - 1, false, alpha, beta, nextTurn);
+                    
+                    gameState.board[fr][fc] = gameState.board[tr][tc];
+                    gameState.board[tr][tc] = target;
+                    
+                    max = Math.max(max, val);
+                    alpha = Math.max(alpha, val);
+                    if (beta <= alpha) break;
+                }
+                return max;
+            } else {
+                let min = Infinity;
+                for (let [fr, fc, tr, tc] of allMoves) {
+                    const target = gameState.board[tr][tc];
+                    gameState.board[tr][tc] = gameState.board[fr][fc];
+                    gameState.board[fr][fc] = '.';
+                    
+                    const val = minimax(depth - 1, true, alpha, beta, nextTurn);
+                    
+                    gameState.board[fr][fc] = gameState.board[tr][tc];
+                    gameState.board[tr][tc] = target;
+                    
+                    min = Math.min(min, val);
+                    beta = Math.min(beta, val);
+                    if (beta <= alpha) break;
+                }
+                return min;
+            }
+        }
+        
+        function findBestMove() {
+            const allMoves = [];
+            for (let i = 0; i < 10; i++) {
+                for (let j = 0; j < 9; j++) {
+                    const piece = gameState.board[i][j];
+                    if (piece !== '.' && pieces[piece].player === gameState.turn) {
+                        const moves = getValidMoves(i, j, gameState.board);
+                        for (let m of moves) allMoves.push([i, j, m[0], m[1]]);
+                    }
+                }
+            }
+            
+            if (allMoves.length === 0) return null;
+            
+            let best = null;
+            const isMax = gameState.turn === 'red';
+            let bestScore = isMax ? -Infinity : Infinity;
+            
+            const nextTurn = gameState.turn === 'red' ? 'blue' : 'red';
+            
+            // 동적 셔플로 최적의 한 수 다양성 추구
+            allMoves.sort(() => Math.random() - 0.5);
+            
+            for (let move of allMoves) {
+                const [fr, fc, tr, tc] = move;
+                const target = gameState.board[tr][tc];
+                gameState.board[tr][tc] = gameState.board[fr][fc];
+                gameState.board[fr][fc] = '.';
+                
+                const score = minimax(2, !isMax, -Infinity, Infinity, nextTurn);
+                
+                gameState.board[fr][fc] = gameState.board[tr][tc];
+                gameState.board[tr][tc] = target;
+                
+                if (isMax) {
+                    if (score > bestScore) {
+                        bestScore = score;
+                        best = move;
+                    }
+                } else {
+                    if (score < bestScore) {
+                        bestScore = score;
+                        best = move;
+                    }
+                }
+            }
+            
+            return best;
+        }
+        
+        // AI 스레드 비동기 루프 호출 구동
+        function executeAIMove() {
+            if (gameState.isGameOver) return;
+            
+            const isAIRed = gameState.gameMode === 'ai';
+            const isAIBlue = gameState.gameMode === 'ai_blue';
+            
+            if ((gameState.turn === 'red' && !isAIRed) || (gameState.turn === 'blue' && !isAIBlue)) {
+                return;
+            }
+            
+            document.getElementById('aiThinking').classList.add('active');
+            
+            setTimeout(() => {
+                const move = findBestMove();
+                
+                if (move) {
+                    const [fr, fc, tr, tc] = move;
+                    movePiece(fr, fc, tr, tc);
+                    gameState.selectedPos = null;
+                    gameState.validMoves = [];
+                    drawBoard();
+                    updateInfo();
+                    document.getElementById('aiThinking').classList.remove('active');
+                    
+                    if (!gameState.isGameOver) {
+                        executeAIMove();
+                    }
+                } else {
+                    document.getElementById('aiThinking').classList.remove('active');
+                }
+            }, 400);
+        }
+        
+        // 대시보드 상태창 업데이트
+        function updateInfo() {
+            const status = document.getElementById('playerStatus');
+            if (gameState.isGameOver) {
+                const winner = gameState.turn === 'red' ? '🔵 초(파랑) 승리!' : '🔴 한(빨강) 승리!';
+                status.textContent = '장기 끝! ' + winner;
+                status.className = 'player-status ' + (gameState.turn === 'red' ? 'blue-player' : 'red-player');
+                document.getElementById('gameStatus').textContent = '왕이 잡혔습니다. 대국 종료.';
+                return;
+            }
+            
+            status.textContent = gameState.turn === 'red' ? '🔴 한(빨강) 차례' : '🔵 초(파랑) 차례';
+            status.className = 'player-status ' + (gameState.turn === 'red' ? 'red-player' : 'blue-player');
+            
+            const gameStatus = document.getElementById('gameStatus');
+            gameStatus.textContent = gameState.moves.length === 0 ? '게임이 시작되었습니다' : '총 ' + gameState.moves.length + '수 진행됨';
+            
+            const movesLog = document.getElementById('movesLog');
+            if (gameState.moves.length > 0) {
+                movesLog.innerHTML = gameState.moves.map((m, i) => {
+                    const isRedMove = i % 2 === 0;
+                    return '<div class="move-item ' + (isRedMove ? 'move-red' : 'move-blue') + '">' + (i + 1) + '. ' + m + '</div>';
+                }).join('');
+                movesLog.scrollTop = movesLog.scrollHeight;
+            } else {
+                movesLog.textContent = '기록이 없습니다';
+            }
+        }
+        
+        function resetGame() {
+            initBoard();
+            drawBoard();
+            updateInfo();
+            executeAIMove();
+        }
+        
+        function setGameMode(mode) {
+            gameState.gameMode = mode;
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            resetGame();
+        }
+        
+        // 어플리케이션 초기화 구동
+        initBoard();
+        drawBoard();
+        updateInfo();
+        executeAIMove();
+    </script>
+</body>
+</html>
